@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-2.1.xsd">
+    <service verb="create" noun="AuthorizeCustomer" type="java" location="test.authorize.net/payment/payment" method="createCustomer" authenticate="anonymous-all">
+        <in-parameters>
+            <parameter name="emailAddress" required="true"/>
+            <parameter name="TokenKey" required="true"/>
+        </in-parameters>
+
+        <out-parameters>
+            <parameter name="clientKey" required="true"/>
+            <!-- testing to add receipt info to EC -->
+            <parameter name="cardLast4"/>
+            <parameter name="CardBrand"/>
+            <parameter name="TimeStamp"/>
+            <parameter name="Receipt"/>
+            <!-- end code -->
+        </out-parameters>
+
+        <actions>
+            <script>
+                println "##############AuthorizeNet Token for Card"
+                println KeyToken
+            </script>
+        </actions>
+    </service>
+
+    <service verb="charge" noun="Customer" type="java" location="test.authorize.net/payment/payment" method="chargeCustomer" authenticate="anonymous-all">
+        <in-parameters>
+            <parameter name="cardAmount" required="true"/>
+            <parameter name="description" required="true"/>
+        </in-parameters>
+
+        <!-- testing to add receipt info to EC -->
+        <out-parameters>
+            <parameter name="cardLast4"/>
+            <parameter name="cardBrand"/>
+            <parameter name="TimeStamp"/>
+            <parameter name="Receipt"/>
+            <parameter name="Paid"/>
+        </out-parameters>
+        <!-- end code -->
+    </service>
+
+    <service verb="send" noun="ConfirmationEmail" type="java" location="com.mk.moqui.sendConfirmationEmail" method="sendEmail" authenticate="anonymous-all">
+        <in-parameters>
+            <parameter name="cardAmount" required="true"/>
+            <parameter name="fullName" required="true"/>
+            <parameter name="emailAddress" required="true"/>
+            <!-- testing to add receipt info to EC -->
+            <parameter name="cardLast4"/>
+            <parameter name="CardBrand"/>
+            <parameter name="TimeStamp"/>
+            <parameter name="Receipt"/>
+            <!-- done -->
+        </in-parameters>
+    </service>
+
+    <service verb="create" noun="PersonCustomer">
+        <in-parameters>
+            <parameter name="fullName" required="true"/>
+            <parameter name="emailAddress" required="true"/>
+            <parameter name="phoneNumber" required="true"/>
+            <parameter name="expMonth" required="true"/>
+            <parameter name="expYear" required="true"/>
+            <parameter name="cardCode" required="true"/>
+            <parameter name="clientKey" required="true"/>
+        </in-parameters>
+
+        <out-parameters>
+            <parameter name="partyId" required="true"/>
+            <parameter name="description" required="true"/>
+        </out-parameters>
+
+        <actions>
+            <script>
+                println "##############Create Moqui Customer Start"
+                println clientKey
+                println "Client Customer Id above"
+            </script>
+            <service-call name="mantle.party.PartyServices.create#PersonCustomer" in-map="context" out-map="context"/>
+            <script>
+                println "##############Create Moqui Customer End"
+                println partyId
+            </script>
+            <set field="ownerPartyId" from="partyId"/>
+            <set field="paymentMethodTypeEnumId" value="PmtOther"/>
+            <set field="description" from="clientKey"/>
+
+            <service-call name="create#mantle.account.method.PaymentMethod" in-map="context" out-map="context"/>
+            <script>
+                println "Description"
+                println description
+                println "Payment Method Id"
+                println paymentMethodId
+            </script>
+        </actions>
+    </service>
+
+    <service verb="customApprove" noun="Order">
+        <implements service="mantle.order.OrderServices.change#OrderStatusInterface"/>
+        <actions>
+            <service-call name="mantle.order.OrderServices.update#OrderStatus" out-map="context" in-map="context + [statusId:'OrderApproved']"/>
+        </actions>
+    </service>
+
+    <service verb="create" noun="OrderForMonthlyDonationPlan">
+        <in-parameters>
+            <parameter name="cardAmount" required="true"/>
+            <parameter name="emailAddress" required="true"/>
+        </in-parameters>
+
+        <out-parameters>
+
+        </out-parameters>
+
+        <actions>
+
+            <script>
+                EntityValue userContactMech = ec.entity.find("mantle.party.contact.ContactMech").condition( [ "infoString" : emailAddress ] ).one()
+
+                EntityValue userPartyContactMech = ec.entity.find("mantle.party.contact.PartyContactMech").condition( [ "contactMechId" : userContactMech.contactMechId ] ).one()
+
+                EntityValue userParty = ec.entity.find("mantle.party.Party").condition( [ "partyId" : userPartyContactMech.partyId ] ).one()
+            </script>
+
+            <set field="partyId" from="userParty.partyId"/>
+            <set field="customerPartyId" from="partyId"/>
+            <set field="vendorPartyId" value="GND"/>
+            <service-call name="mantle.order.OrderServices.create#Order" in-map="context" out-map="context"/>
+
+            <set field="itemTypeEnumId" value="ItemDonationMonthly"/>
+            <set field="quantity" value="1"/>
+            <set field="unitListPrice" from="cardAmount"/>
+            <service-call name="mantle.order.OrderServices.create#OrderItem" in-map="context" out-map="context"/>
+
+            <set field="partTotal" from="cardAmount"/>
+            <service-call name="mantle.order.OrderServices.update#OrderPart" in-map="context" out-map="context"/>
+
+            <set field="paymentTypeEnumId" value="PtInvoicePayment"/>
+            <set field="paymentInstrumentEnumId" value="PiOther"/>
+            <service-call name="mantle.order.OrderServices.add#OrderPartPayment" in-map="context" out-map="context"/>
+
+            <set field="fromPartyId" value="GND"/>
+            <set field="toPartyId" from="customerPartyId"/>
+            <set field="unpaidTotal" from="cardAmount"/>
+            <set field="appliedPaymentsTotal" value="0.00"/>
+            <set field="invoiceTotal" from="cardAmount"/>
+            <set field="description" value="Monthly Donation"/>
+            <service-call name="mantle.account.InvoiceServices.create#Invoice" in-map="context" out-map="context"/>
+
+            <set field="amount" from="cardAmount"/>
+            <service-call name="mantle.account.InvoiceServices.create#InvoiceItem" in-map="context" out-map="context"/>
+
+            <service-call name="mantle.account.PaymentServices.send#PromisedPayment" in-map="context" out-map="context"/>
+
+            <service-call name="mantle.account.PaymentServices.apply#InvoicePayment" in-map="context" out-map="context"/>
+
+            <service-call name="mantle.order.OrderServices.place#Order" in-map="context" out-map="context"/>
+
+            <service-call name="mantle.order.OrderServices.approve#Order" in-map="context" out-map="context"/>
+        </actions>
+    </service>
+
+    <service verb="post" noun="DonationData" authenticate="anonymous-all">
+        <in-parameters>
+            <parameter name="cardAmount" required="true"/>
+            <parameter name="partyId" required="true"/>
+        </in-parameters>
+
+        <out-parameters>
+
+        </out-parameters>
+
+        <actions>
+            <set field="customerPartyId" from="partyId"/>
+            <set field="vendorPartyId" value="GND"/>
+            <service-call name="mantle.order.OrderServices.create#Order" in-map="context" out-map="context"/>
+
+            <set field="itemTypeEnumId" value="ItemDonation"/>
+            <set field="quantity" value="1"/>
+            <set field="unitListPrice" from="cardAmount"/>
+            <service-call name="mantle.order.OrderServices.create#OrderItem" in-map="context" out-map="context"/>
+
+            <set field="partTotal" from="cardAmount"/>
+            <service-call name="mantle.order.OrderServices.update#OrderPart" in-map="context" out-map="context"/>
+
+            <set field="paymentTypeEnumId" value="PtInvoicePayment"/>
+            <set field="paymentInstrumentEnumId" value="PiOther"/>
+            <service-call name="mantle.order.OrderServices.add#OrderPartPayment" in-map="context" out-map="context"/>
+
+            <set field="fromPartyId" value="DonationForm"/>
+            <set field="toPartyId" from="customerPartyId"/>
+            <set field="unpaidTotal" from="cardAmount"/>
+            <set field="appliedPaymentsTotal" value="0.00"/>
+            <set field="invoiceTotal" from="cardAmount"/>
+            <set field="description" value="Donation"/>
+            <service-call name="mantle.account.InvoiceServices.create#Invoice" in-map="context" out-map="context"/>
+
+            <set field="amount" from="cardAmount"/>
+            <service-call name="mantle.account.InvoiceServices.create#InvoiceItem" in-map="context" out-map="context"/>
+
+            <service-call name="mantle.account.PaymentServices.send#PromisedPayment" in-map="context" out-map="context"/>
+
+            <service-call name="mantle.account.PaymentServices.apply#InvoicePayment" in-map="context" out-map="context"/>
+
+            <service-call name="mantle.order.OrderServices.place#Order" in-map="context" out-map="context"/>
+
+            <service-call name="DonationPage.DonationPageServices.customApprove#Order" in-map="context" out-map="context"/>
+
+            <service-call name="mantle.order.OrderServices.complete#OrderPart" in-map="context" out-map="context"/>
+        </actions>
+    </service>
+
+    <service verb="handle" noun="Donation" authenticate="anonymous-all">
+        <in-parameters>
+            <parameter name="cardAmount" required="true"/>
+            <parameter name="emailAddress" required="true"/>
+        </in-parameters>
+
+        <out-parameters>
+
+        </out-parameters>
+
+        <actions>
+            <script>
+                EntityValue userContactMech = ec.entity.find("mantle.party.contact.ContactMech").condition( [ "infoString" : emailAddress ] ).one()
+
+                EntityValue userPartyContactMech = ec.entity.find("mantle.party.contact.PartyContactMech").condition( [ "contactMechId" : userContactMech.contactMechId ] ).one()
+
+                EntityValue userParty = ec.entity.find("mantle.party.Party").condition( [ "partyId" : userPartyContactMech.partyId ] ).one()
+
+                EntityValue userPerson = ec.entity.find("mantle.party.Person").condition( [ "partyId" : userParty.partyId ] ).one()
+
+                EntityValue userPersonInfo = ec.entity.find("mantle.account.method.PaymentMethod").condition( [ "ownerPartyId" : userParty.partyId ] ).one()
+            </script>
+
+            <set field="partyId" from="userPartyContactMech.partyId"/>
+            <set field="fullName" from="userPerson.fullName"/>
+            <set field="description" from="userPersonInfo.description"/>
+
+            <service-call name="DonationPage.DonationPageServices.charge#Customer" in-map="context" out-map="context"/>
+
+            <service-call name="DonationPage.DonationPageServices.send#ConfirmationEmail" in-map="context" out-map="context"/>
+
+            <service-call name="DonationPage.DonationPageServices.post#DonationData" in-map="context" out-map="context"/>
+        </actions>
+    </service>
+
+    <service verb="check" noun="DonorEmailAndFrequency">
+        <in-parameters>
+            <parameter name="emailAddress" required="true"/>
+            <parameter name="donationFrequency" required="true"/>
+            <parameter name="tokenKey"/>
+            <parameter name="fullName"/>
+            <parameter name="phoneNumber"/>
+            <parameter name="cardAmount"/>
+        </in-parameters>
+
+        <out-parameters>
+        </out-parameters>
+
+        <actions>
+            <script>
+                EntityValue queryForEmail = ec.entity.find("mantle.party.contact.ContactMech").condition( [ "infoString" : emailAddress ] ).one()
+            </script>
+
+            <if condition="queryForEmail != null &amp;&amp; donationFrequency == 'one-time-donation'">
+                <service-call name="DonationPage.DonationPageServices.handle#Donation" in-map="context" out-map="context"/>
+            </if>
+
+            <if condition="queryForEmail == null &amp;&amp; donationFrequency == 'one-time-donation'">
+                <service-call name="DonationPage.DonationPageServices.create#Customer" in-map="context" out-map="context"/>
+
+                <service-call name="DonationPage.DonationPageServices.create#PersonCustomer" in-map="context" out-map="context"/>
+
+                <service-call name="DonationPage.DonationPageServices.handle#Donation" in-map="context" out-map="context"/>
+            </if>
+
+            <if condition="queryForEmail != null &amp;&amp; donationFrequency == 'monthly-donation'">
+                <service-call name="DonationPage.DonationPageServices.create#OrderForMonthlyDonationPlan" in-map="context" out-map="context"/>
+            </if>
+
+            <if condition="queryForEmail == null &amp;&amp; donationFrequency == 'monthly-donation'">
+                <service-call name="DonationPage.DonationPageServices.create#Customer" in-map="context" out-map="context"/>
+
+                <service-call name="DonationPage.DonationPageServices.create#PersonCustomer" in-map="context" out-map="context"/>
+
+                <service-call name="DonationPage.DonationPageServices.create#OrderForMonthlyDonationPlan" in-map="context" out-map="context"/>
+            </if>
+        </actions>
+    </service>
+
+    <service verb="process" noun="MonthlyDonation" authenticate="anonymous-all">
+        <!-- This service runs handle#donation for every single person in the database who opted into a monthly-donation plan. It'll pull the amount each customer committed to and create a donation (including charging them through , sending a confirmation email, and posting donation data into Moqui) on their behalf. -->
+        <in-parameters>
+        </in-parameters>
+
+        <out-parameters>
+        </out-parameters>
+
+        <actions>
+            <!-- The ArrayList "orderIds" will contain the orderIds of all orders that contain the "ItemDonationMonthly" item. From this array, we will find the corresponing emailAddress and cardAmount associated with that monthly-donation order. -->
+            <set field="orderIds" from="new ArrayList()"/>
+            <!-- The ArrayList "Final" is a list that contains all the maps of necessary parameters to run "handle#donation". -->
+            <set field="Final" from="new ArrayList()"/>
+
+            <entity-find entity-name="mantle.order.OrderItem" list="MonthlyOrderItems">
+                <econdition field-name="itemTypeEnumId" value="ItemDonationMonthly"/>
+            </entity-find>
+
+            <iterate list="MonthlyOrderItems" entry="MonthlyOrderItem">
+                <script>
+                    orderIds.push(MonthlyOrderItem.orderId)
+                </script>
+
+            </iterate>
+
+            <iterate list="orderIds" entry="orderId">
+                <!-- The Hashmap "Gold" is a map that will contain the parameters emailAddress and cardAmount. -->
+                <set field="Gold" from="new HashMap()"/>
+
+                <entity-find entity-name="mantle.order.OrderItem" list="cardAmounts">
+                    <econdition field-name="orderId" from="orderId"/>
+                </entity-find>
+                <set field="cardAmount" from="cardAmounts[0].unitListPrice"/>
+
+                <entity-find-one entity-name="mantle.order.OrderPart" value-field="OrderPart" auto-field-map="context"/>
+                <set field="partyId" from="OrderPart.customerPartyId"/>
+
+                <entity-find entity-name="mantle.party.contact.PartyContactMech" list="partyContactMechs">
+                    <econdition field-name="contactMechPurposeId" value="EmailPrimary"/>
+                    <econdition field-name="partyId" from="partyId"/>
+                </entity-find>
+
+                <set field="contactMechId" from="partyContactMechs[0].contactMechId"/>
+
+                <entity-find entity-name="mantle.party.contact.ContactMech" list="contactMechs">
+                    <econdition field-name="contactMechId" from="contactMechId"/>
+                </entity-find>
+                <set field="emailAddress" from="contactMechs[0].infoString"/>
+
+                <script>
+                    Gold.put("cardAmount", cardAmount)
+                    Gold.put("emailAddress", emailAddress)
+
+                    Final.push(Gold)
+                </script>
+            </iterate>
+
+            <iterate list="Final" entry="FinalEntry">
+                <service-call name="DonationPage.DonationPageServices.handle#Donation" in-map="FinalEntry" out-map="context"/>
+            </iterate>
+        </actions>
+    </service>
+</services>
