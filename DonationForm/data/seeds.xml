@@ -1,1 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-facade-xml type="seed">
+    <moqui.security.ArtifactGroup artifactGroupId="AUTHORIZATION_API"/>
+    <moqui.security.ArtifactAuthz userGroupId="ADMIN" authzActionEnumId="AUTHZA_ALL" artifactGroupId="AUTHORIZATION_API" authzTypeEnumId="AUTHZT_ALLOW"/>
 
+    <artifactGroups artifactGroupId="AUTHORIZATION_API">
+        <artifacts artifactName="component://DonationPage/screen/DonationPage/DonationForm*" artifactTypeEnumId="AT_XML_SCREEN_TRANS" inheritAuthz="Y" nameIsPattern="Y"/>
+        <artifacts artifactName="component://DonationPage/screen/DonationPage/DonationForm.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y" nameIsPattern="N"/>
+
+        <artifacts artifactName="component://DonationPage/screen/DonationPage/FirstTimeDonor*" artifactTypeEnumId="AT_XML_SCREEN_TRANS" inheritAuthz="Y" nameIsPattern="Y"/>
+        <artifacts artifactName="component://DonationPage/screen/DonationPage/FirstTimeDonor.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y" nameIsPattern="N"/>
+
+        <artifacts artifactName="component://DonationPage/screen/DonationPage/ReturningDonor*" artifactTypeEnumId="AT_XML_SCREEN_TRANS" inheritAuthz="Y" nameIsPattern="Y"/>
+        <artifacts artifactName="component://DonationPage/screen/DonationPage/ReturningDonor.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y" nameIsPattern="N"/>
+
+        <artifacts artifactName="component://DonationPage/screen/DonationPage/ThankYouPage*" artifactTypeEnumId="AT_XML_SCREEN_TRANS" inheritAuthz="Y" nameIsPattern="Y"/>
+        <artifacts artifactName="component://DonationPage/screen/DonationPage/ThankYouPage.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y" nameIsPattern="N"/>
+
+
+        <artifacts artifactName="DonationPage.DonationPageServices.create#Donation" artifactTypeEnumId="AT_SERVICE" inheritAuthz="Y" nameIsPattern="N"/>
+        <artifacts artifactName="DonationPage.DonationPageServices.create#Donation" artifactTypeEnumId="AT_XML_SCREEN_TRANS" inheritAuthz="Y" nameIsPattern="N"/>
+        <artifacts artifactName="DonationPage.DonationPageServices.create#PersonCustomer" artifactTypeEnumId="AT_SERVICE" inheritAuthz="Y" nameIsPattern="N"/>
+        <artifacts artifactName="DonationPage.DonationPageServices.create#PersonCustomer" artifactTypeEnumId="AT_XML_SCREEN_TRANS" inheritAuthz="Y" nameIsPattern="N"/>
+        <artifacts artifactName="DonationPage.DonationPageServices.post#DonationData" artifactTypeEnumId="AT_SERVICE" inheritAuthz="Y" nameIsPattern="N"/>
+        <artifacts artifactName="DonationPage.DonationPageServices.post#DonationData" artifactTypeEnumId="AT_XML_SCREEN_TRANS" inheritAuthz="Y" nameIsPattern="N"/>
+        <artifacts artifactName="DonationPage.DonationPageServices.handle#Donation" artifactTypeEnumId="AT_SERVICE" inheritAuthz="Y" nameIsPattern="N"/>
+        <artifacts artifactName="DonationPage.DonationPageServices.handle#Donation" artifactTypeEnumId="AT_XML_SCREEN_TRANS" inheritAuthz="Y" nameIsPattern="N"/>
+        <artifacts artifactName="DonationPage.DonationPageServices.check#DonorEmailAndFrequency" artifactTypeEnumId="AT_SERVICE" inheritAuthz="Y" nameIsPattern="N"/>
+        <artifacts artifactName="DonationPage.DonationPageServices.check#DonorEmailAndFrequency" artifactTypeEnumId="AT_XML_SCREEN_TRANS" inheritAuthz="Y" nameIsPattern="N"/>
+        <artifacts artifactName="DonationPage.DonationPageServices.create#OrderForMonthlyDonationPlan" artifactTypeEnumId="AT_SERVICE" inheritAuthz="Y" nameIsPattern="N"/>
+        <artifacts artifactName="DonationPage.DonationPageServices.create#OrderForMonthlyDonationPlan" artifactTypeEnumId="AT_XML_SCREEN_TRANS" inheritAuthz="Y" nameIsPattern="N"/>
+        <artifacts artifactName="DonationPage.DonationPageServices.process#MonthlyDonation" artifactTypeEnumId="AT_SERVICE" inheritAuthz="Y" nameIsPattern="N"/>
+        <artifacts artifactName="DonationPage.DonationPageServices.process#MonthlyDonation" artifactTypeEnumId="AT_XML_SCREEN_TRANS" inheritAuthz="Y" nameIsPattern="N"/>
+
+    </artifactGroups>
+    <mantle.party.Party partyId="DonationPage" partyTypeEnumId="PtyOrganization"/>
+    <mantle.party.Organization partyId="DonationPage" organizationName="MK Org"/>
+    <mantle.party.PartyRole partyId="DonationPage" roleTypeId="OrgInternal"/>
+    <mantle.party.PartyRole partyId="DonationPage" roleTypeId="Vendor"/>
+    <moqui.basic.Enumeration enumId="ItemDonationMonthly" enumTypeId="ItemType" parentEnumId="ItemSales" description="Monthly Donation"/>
+    <moqui.service.job.ServiceJob jobName="process_monthly_donation" description="DonationPage Monthly Donation Processing"  serviceName="DonationPage.DonationPageServices.process#MonthlyDonation" cronExpression="0 0/5 * * * ?" paused="N">
+    </moqui.service.job.ServiceJob>
+
+    <moqui.entity.document.DataDocument dataDocumentId="DonationPageDonationsReport" indexName="DonationPageDonationsReport" documentName="DonationPageDonationsReport" primaryEntityName="mantle.account.invoice.Invoice" documentTitle="${name}"/>
+    <moqui.entity.document.DataDocumentField dataDocumentId="DonationPageDonationsReport" fieldPath="toParty:partyId" fieldNameAlias="PartyId"/>
+    <moqui.entity.document.DataDocumentField dataDocumentId="DonationPageDonationsReport" fieldPath="toParty:person:fullName" fieldNameAlias="fullName"/>
+    <moqui.entity.document.DataDocumentField dataDocumentId="DonationPageDonationsReport" fieldPath="invoiceTotal" fieldNameAlias="cardAmount" functionName="sum"/>
+    <moqui.entity.document.DataDocumentField dataDocumentId="DonationPageDonationsReport" fieldPath="invoiceId" fieldNameAlias="NumberOfDonations" functionName="count"/>
+    <moqui.entity.document.DataDocumentField dataDocumentId="DonationPageDonationsReport" fieldPath="toParty:roles:roleTypeId" defaultDisplay="N"/>
+    <moqui.entity.document.DataDocumentField dataDocumentId="DonationPageDonationsReport" fieldPath="invoiceDate" fieldNameAlias="LastDonation" functionName="max"/>
+    <moqui.entity.document.DataDocumentField dataDocumentId="DonationPageDonationsReport" fieldPath="toParty:contactMechs:telecomNumber:phoneNumber" fieldNameAlias="PhoneNumber"/>
+    <moqui.entity.document.DataDocumentField dataDocumentId="DonationPageDonationsReport" fieldPath="toParty:contactMechs:contactMech:infoString" fieldNameAlias="EmailAddress"/>
+    <moqui.entity.document.DataDocumentField dataDocumentId="DonationPageDonationsReport" fieldPath="toParty:contactMechs:contactMechPurposeId"/>
+    <moqui.entity.document.DataDocumentField dataDocumentId="DonationPageDonationsReport" fieldPath="description" defaultDisplay="N"/>
+    <moqui.entity.document.DataDocumentCondition dataDocumentId="DonationPageDonationsReport" fieldNameAlias="description" fieldValue="Donation"/>
+    <moqui.entity.document.DataDocumentCondition dataDocumentId="DonationPageDonationsReport" fieldNameAlias="roleTypeId" fieldValue="Customer"/>
+    <moqui.entity.document.DataDocumentCondition dataDocumentId="DonationPageDonationsReport" fieldNameAlias="contactMechPurposeId" operator="not-equals" fieldValue="PostalPrimary"/>
+
+</entity-facade-xml>
